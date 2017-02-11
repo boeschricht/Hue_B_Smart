@@ -24,6 +24,9 @@
  *
  *	Version 1.3b -- When light is off, adjustments to hue / saturation or colorTemp (WITHOUT a level or switch command) will not be sent to Hue Hub.  Instead, the DTH will save
  *				those settings and apply if light is then turned on.  
+ *
+ *	Version 1.3c boeschricht@gmail.com -- added missing SetTransitionTime code, added untimed Flash code and associated control tiles.
+ *				
  */
 
  preferences {
@@ -47,10 +50,13 @@ metadata {
         command "reset"
         command "refresh"
         command "flash"
+        command "flash_on"
         command "flash_off"
         command "setTransitionTime"
         command "ttUp"
         command "ttDown"
+        command "setTT3sec"
+        command "setTT10sec"
         command "colorloopOn"
 		command "colorloopOff"
         command "updateStatus"
@@ -68,6 +74,7 @@ metadata {
         command "setLevel"
         command "setColor"
         command "setColorTemperature"
+        command "test"
 
  		attribute "colorTemperature", "number"
 		attribute "bri", "number"
@@ -142,18 +149,30 @@ metadata {
 		standardTile("flash", "device.flash", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
 			state "default", label:"Flash", action:"flash", icon:"st.lights.philips.hue-single"
 		}
+ 		standardTile("flash_on", "device.flash_on", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "default", label:"Flash on", action:"flash_on", icon:"st.lights.philips.hue-single"
+		}
+ 		standardTile("flash_off", "device.flash_off", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "default", label:"Flash off", action:"flash_off", icon:"st.lights.philips.hue-single"
+		}
         
         /* transition time */
-		valueTile("ttlabel", "transitionTime", decoration: "flat", width: 2, height: 1) {
-			state "default", label:'Transition Time: ${currentValue}00ms'
+		valueTile("valueTransitionTime", "device.transitionTime", decoration: "flat", width: 2, height: 1) {
+			state "transitionTime", label:'Transition Time: ${currentValue}00ms'
 		}
-		valueTile("ttdown", "device.transitionTime", decoration: "flat", width: 2, height: 1) {
+ 		valueTile("ttdown", "device.transitionTime", decoration: "flat", width: 2, height: 1) {
 			state "default", label: "TT -100ms", action:"ttDown"
 		}
 		valueTile("ttup", "device.transitionTime", decoration: "flat", width: 2, height: 1) {
 			state "default", label:"TT +100ms", action:"ttUp"
 		}
-        
+		standardTile("tt3sec", "device.transitionTime", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "default", label:"TT 3 sec", action:"setTT3sec"
+		}
+		standardTile("tt10sec", "device.transitionTime", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "default", label:"TT 10 sec", action:"setTT10sec"
+		}
+ 
         /* misc */
         
         valueTile("hueID", "device.hueID", inactiveLabel: false, decoration: "flat", width: 2, height: 1) {
@@ -168,15 +187,20 @@ metadata {
         valueTile("username", "device.username", inactiveLabel: false, decoration: "flat", width: 3, height: 1) {
 			state "default", label: 'User: ${currentValue}'
         }
+        standardTile("test", "", decoration: "flat", width: 2, height: 2) {
+			state "default", label:"Test", action:"test"
+		}
 
         standardTile("toggleColorloop", "device.effect", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
 			state "colorloop", label:"Color Loop On", action:"colorloopOff", nextState: "updating", icon:"https://raw.githubusercontent.com/infofiend/Hue-Lights-Groups-Scenes/master/smartapp-icons/hue/png/colorloop-on.png"
             state "none", label:"Color Loop Off", action:"colorloopOn", nextState: "updating", icon:"https://raw.githubusercontent.com/infofiend/Hue-Lights-Groups-Scenes/master/smartapp-icons/hue/png/colorloop-off.png"
             state "updating", label:"Working", icon: "st.secondary.secondary"
 		}
+        
+ 
 	}
 	main(["rich-control"])
-	details(["rich-control","colormode","hueID","valueHue", "hue", "valueSat", "saturation", "valueCT","colorTemperature","ttlabel","ttdown","ttup","toggleColorloop","flash", "reset","refresh"])	//  "host", "username",
+	details(["rich-control","colormode","hueID","valueHue", "hue", "valueSat", "saturation", "valueCT","colorTemperature","valueTransitionTime","transitionTime","ttdown","ttup","tt3sec", "tt10sec", "toggleColorloop","flash","flash_on","flash_off","reset","refresh", "test"])	//  "host", "username",
 }
 
 private configure() {		
@@ -193,7 +217,6 @@ def parse(String description) {
 	log.debug "Parsing '${description}'"
 }
 
-
 def installed() {
 	log.debug "Installed with settings: ${settings}"
 	initialize()
@@ -208,14 +231,12 @@ def updated() {
 def initialize() {
 	state.xy = [:]
     
-    state.notiSetting1 = true
-    state.notiSetting2 = true
-    log.trace "Initialize(): notiSetting is ${notiSetting}"
 	if (notiSetting == "All" ) {
-    
+		state.notiSetting1 = true
+		state.notiSetting2 = true   
     } else if (notiSetting == "Only On / Off" ) {
+		state.notiSetting1 = true
    		state.notiSetting2 = false
-
 	} else if (notiSetting == "None" ) {
 		state.notiSetting1 = false
 	    state.notiSetting2 = false
@@ -224,11 +245,24 @@ def initialize() {
     log.debug "state.notiSetting2 = ${state.notiSetting2}"    
 }
 
+
+def setTransitionTime(tt) {
+	log.trace "Hue B Smart Bulb: setTransitionTime(): "
+    if (tt == null) { tt = 4 }
+    log.debug "setTransitionTime ${tt}"
+    sendEvent(name: "transitionTime", value: tt, displayed: state.notiSetting2)
+}
+
+def setTT3sec() {
+	setTransitionTime(30)
+}
+def setTT10sec() {
+	setTransitionTime(100)
+}
 def ttUp() {
 	log.trace "Hue B Smart Bulb: ttUp(): "
     def tt = this.device.currentValue("transitionTime") ?: 0
     if (tt == null) { tt = 4 }
-    log.debug "ttup ${tt}"
     sendEvent(name: "transitionTime", value: tt + 1, displayed: state.notiSetting2)
 }
 
@@ -285,11 +319,10 @@ def sendToHub(values) {
 
 	def bri
 	if (values.level) {
-    	bri = values.level 
-    	validValues.bri = parent.scaleLevel(bri, true, 254)
-        sendBody["bri"] = validValues.bri
-        
 		if (values.level > 0) { 
+            bri = values.level 
+            validValues.bri = parent.scaleLevel(bri, true, 254) //xxx
+            sendBody["bri"] = validValues.bri
         	sendBody["on"] = true
         } else {
         	sendBody["on"] = false
@@ -304,17 +337,19 @@ def sendToHub(values) {
 		sendBody["on"] = true
 	}
 
-    sendBody["transitiontime"] = device.currentValue("transitionTime") as Integer ?: 0
+      if (values.transitionTime) {
+    	sendBody["transitiontime"] = values.transitionTime
+    }
     
     def isOn = this.device.currentValue("switch")
     if (values.switch == "on" || values.level || isOn == "on") {
     	state.xy = [:]
         state.ct = null
         
+        // if hex values exist, convert xy
 	    if (values.hex != null) {
 			if (values.hex ==~ /^\#([A-Fa-f0-9]){6}$/) {
 				validValues.xy = colorFromHex(values.hex)		// getHextoXY(values.hex)
-            	sendBody["xy"] = validValues.xy
 			} else {
     	        log.warn "$values.hex is not a valid color"
         	}
@@ -323,7 +358,7 @@ def sendToHub(values) {
 		}
 		
     	if (validValues.xy ) {
-    
+          	sendBody["xy"] = validValues.xy
 			log.debug "XY value found.  Sending ${sendBody} " 
 
 			parent.sendHubCommand(new physicalgraph.device.HubAction(
@@ -340,7 +375,6 @@ def sendToHub(values) {
 			sendEvent(name: "colormode", value: "XY", displayed: state.notiSetting2, isStateChange: true) 
         	sendEvent(name: "hue", value: values.hue as Integer, displayed: state.notiSetting2) 
 	        sendEvent(name: "saturation", value: values.saturation as Integer, displayed: state.notiSetting2, isStateChange: true) 
-
         	sendEvent(name: "colorTemperature", value: -1, displayed: false, isStateChange: true)
             
 		} else {
@@ -526,7 +560,7 @@ def refresh() {
 def reset() {
 	log.trace "Hue B Smart Bulb: reset(): "
 
-	def value = [level:100, saturation:56, hue:23]
+	def value = [level:100, xy:[0.445, 0.407], transitionTime:4] 
     sendToHub(value)
 }
 
@@ -536,6 +570,12 @@ def reset() {
 
 def flash() {
 	log.trace "Hue B Smart Bulb: flash(): "
+	flash_on()
+    runIn(5, flash_off)
+}
+
+def flash_on() {
+	log.trace "Hue B Smart Bulb: flash_on(): "
     def commandData = parent.getCommandData(device.deviceNetworkId)
 	parent.sendHubCommand(new physicalgraph.device.HubAction(
     	[
@@ -580,7 +620,7 @@ private updateStatus(action, param, val) {
         	case "on":
             	def onoff
             	if (val == true) {
-                	sendEvent(name: "switch", value: on, displayed: onoffNotice, isStateChange: true)                	     
+                	sendEvent(name: "switch", value: on, displayed:onoffNotice, isStateChange: true)                	     
                 
                 } else {
 	            	sendEvent(name: "switch", value: off, displayed: onoffNotice)
@@ -627,9 +667,10 @@ void setAdjustedColor(value) {
 
         def adjusted = [:]
         adjusted = value     
-        value.level = device.currentValue("level") ?: 100 // null
-        sendToHub(value)
-        
+        value.level = this.device.currentValue("level") ?: 100
+        if (value.level > 100) value.level = 100 // null
+        log.debug "adjusted = ${adjusted}"
+        setColor(value)
     } else {
 		log.warn "Invalid color input"
 	}
@@ -702,6 +743,14 @@ void colorloopOff() {
         def retSat = state.returnSat as Integer
         setColor(hue: retHue, saturation: retSat)
     }
+}
+
+def test() {
+	//xxx
+	log.trace "test()"
+	
+    def value = [level:100, xy:[0.445, 0.407], transitionTime:4] 
+	sendToHub(value)
 }
 
 /**

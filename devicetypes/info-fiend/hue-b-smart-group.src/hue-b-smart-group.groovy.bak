@@ -50,12 +50,9 @@ metadata {
         command "refresh"
         command "updateStatus"
         command "flash"
-        command "flash_on"
         command "flash_off"
 		command "ttUp"
         command "ttDown"
-        command "setTT3sec"
-        command "setTT10sec"
         command "setColorTemperature"
         command "setTransitionTime"
         command "colorloopOn"
@@ -115,7 +112,7 @@ metadata {
 
 		/* reset / refresh */	
 		standardTile("reset", "device.reset", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-			state "default", label:"Reset", action:"reset", icon:"st.lights.philips.hue-multi"
+			state "default", label:"Reset Color", action:"reset", icon:"st.lights.philips.hue-multi"
 		}
 		standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
 			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
@@ -201,7 +198,7 @@ metadata {
 		}
 	}
 	main(["rich-control"])
-	details(["rich-control","colormode","groupID","valueHue","hue","valueSat","saturation","valueCT","colorTemperature","valueTransitionTime","ttdown","ttup","tt3sec", "tt10sec","lights","toggleColorloop","flash", "flash_on", "flash_off","reset","refresh"]) //  "host", "username", 
+	details(["rich-control","colormode","groupID","valueHue","hue","valueSat","saturation","valueCT","colorTemperature","valueTransitionTime","ttdown","ttup","tt3sec", "tt10sec","lights","toggleColorloop","flash","reset","refresh"]) //  "host", "username", 
 }
 
 private configure() {		
@@ -248,14 +245,13 @@ def initialize() {
 
 
 def setTransitionTime(tt) {
-	log.trace "Hue B Smart Gr oup-: setTransitionTime(): "
+	log.trace "Hue B Smart Group: setTransitionTime(): "
     if (tt == null) { tt = 4 }
     log.debug "setTransitionTime ${tt}"
     sendEvent(name: "transitionTime", value: tt, displayed: state.notiSetting2)
 }
 
 def setTT3sec() {
-	log.trace "Hue B Smart Group: setTT3sec(): "
 	setTransitionTime(30)
 }
 def setTT10sec() {
@@ -338,12 +334,10 @@ def sendToHub(values) {
 	if (values.switch == "off" ) {
     	sendBody["on"] = false
     } else if (values.switch == "on") {
-		sendBody["on"] = true //
+		sendBody["on"] = true
 	}
-    
-    if (values.transitionTime) {
-    	sendBody["transitiontime"] = values.transitionTime
-    }
+        
+    sendBody["transitiontime"] = device.currentValue("transitionTime") as Integer ?: 0
     
     def isOn = this.device.currentValue("switch")
     if (values.switch == "on" || values.level || isOn == "on") {
@@ -353,15 +347,16 @@ def sendToHub(values) {
 	    if (values.hex != null) {
 			if (values.hex ==~ /^\#([A-Fa-f0-9]){6}$/) {
 				validValues.xy = colorFromHex(values.hex)		// getHextoXY(values.hex)
+            	sendBody["xy"] = validValues.xy
 			} else {
     	        log.warn "$values.hex is not a valid color"
         	}
 		} else if (values.xy) {
-            validValues.xy = values.xy
+        	validValues.xy = values.xy
 		}
 		
     	if (validValues.xy ) {
-          	sendBody["xy"] = validValues.xy
+    
 			log.debug "XY value found.  Sending ${sendBody} " 
 
 			parent.sendHubCommand(new physicalgraph.device.HubAction(
@@ -407,8 +402,6 @@ def sendToHub(values) {
     	   
     	}
 	} else {
-    	if (values.xy) {
-        }
     	if (values.hue && values.saturation) {
             validValues.xy = colorFromHSB(values.hue, values.saturation, bri)
           	log.debug "Group off, so saving xy value ${validValues.xy} for later."   
@@ -572,7 +565,7 @@ def refresh() {
 def reset() {
 	log.trace "Hue B Smart Group: reset(): "
 
-    def value = [level:100, xy:[0.445, 0.407], transitionTime:4]
+    def value = [level:100, saturation:56, hue:23]
     sendToHub(value)
 }
 
@@ -599,6 +592,8 @@ def flash_on() {
 	        body: [alert: "lselect"]
 		])
 	)
+    
+    runIn(5, flash_off)
 }
 
 def flash_off() {
