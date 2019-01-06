@@ -125,9 +125,6 @@ metadata {
 	details(["rich-control","valueCT", "colorTemperature","flash","reset","refresh", "transitiontime", "reachable"])
 }
 
-void installed() {
-	sendEvent(name: "DeviceWatch-Enroll", value: "{\"protocol\": \"LAN\", \"scheme\":\"untracked\", \"hubHardwareId\": \"${device.hub.hardwareID}\"}", displayed: false)
-}
 
 private configure() {		
     def commandData = parent.getCommandData(device.deviceNetworkId)
@@ -146,6 +143,7 @@ def parse(String description) {
 def installed() {
 	log.debug "Installed with settings: ${settings}"
 	sendEvent(name: "transitionTime", value: tt)
+	sendEvent(name: "DeviceWatch-Enroll", value: "{\"protocol\": \"LAN\", \"scheme\":\"untracked\", \"hubHardwareId\": \"${device.hub.hardwareID}\"}", displayed: false)
 	initialize()
 }
 
